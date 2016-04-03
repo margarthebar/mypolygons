@@ -61,6 +61,7 @@ void draw_polygons( struct matrix *polygons, screen s, color c ) {
     draw_line(x0, y0, x1, y1, s, c);
     draw_line(x1, y1, x2, y2, s, c);
     draw_line(x2, y2, x0, y0, s, c);
+    //printf("(%lf, %lf) (%lf, %lf)\n",x0,y0,x1,y1);
   }
 }
 
@@ -102,19 +103,21 @@ void add_sphere( struct matrix * points,
   latStop = num_steps;
   longStart = 0;
   longStop = num_steps;
-  
-  for ( lat = latStart; lat < latStop; lat++ ) {
-    for ( longt = longStart; longt < longStop; longt++ ) {
-      
-      index = lat * (num_steps+1) + longt;
-      add_edge( points, temp->m[0][index],
-		temp->m[1][index],
-		temp->m[2][index],
-		temp->m[0][index] + 1,
-		temp->m[1][index] + 1,
-		temp->m[2][index] );
-    }//end points only
+  //latitudes go from 0 to step/2
+  //longitudes go from 0 to step/2
+
+  for(lat = 0; lat<num_steps/2; lat++){
+    for(longt = 0; longt<num_steps/2+1; longt++){
+      if(lat==0){
+	add_polygon( points,
+		     temp->m[0][0], temp->m[1][0], temp->m[2][0],
+		     temp->m[0][longt], temp->m[1][longt], temp->m[2][longt],
+		     temp->m[0][longt], temp->m[1][longt], temp->m[2][longt]
+		     );
+      }
+    }
   }
+
   free_matrix(temp);
 }
 
@@ -195,16 +198,67 @@ void add_torus( struct matrix * points,
   //generate the points on the torus
   generate_torus( temp, cx, cy, r1, r2, step );
 
+  //temp contains all the points in one circle, times how many circles
+  int circle_index, point_index, top_left, top_right, bottom_left, bottom_right;
+  top_left = 0;
+  top_right = top_left + num_steps;
+  bottom_left = top_left + 1;
+  bottom_right = top_right + 1;
+  for( circle_index = 0; circle_index < num_steps; circle_index++){
+    for(point_index = 0; point_index < num_steps; point_index++){
+      //printf("%d %d %d %d\n",top_left,bottom_left,bottom_right,top_right);
+      //draws triangles
+      ////top_left, bottom_left, bottom_right
+      add_polygon( points,
+		   temp->m[0][top_left], temp->m[1][top_left], temp->m[2][top_left],
+		   temp->m[0][bottom_left], temp->m[1][bottom_left], temp->m[2][bottom_left],
+		   temp->m[0][bottom_right], temp->m[1][bottom_right], temp->m[2][bottom_right]
+		   );
+      ////top_left, bottom_right, top_right
+       add_polygon( points,
+		   temp->m[0][top_left], temp->m[1][top_left], temp->m[2][top_left],
+		   temp->m[0][bottom_right], temp->m[1][bottom_right], temp->m[2][bottom_right],
+		   temp->m[0][top_right], temp->m[1][top_right], temp->m[2][top_right]
+		   );
+      //reassign variables correctly
+      top_left++;
+      top_right++;
+      bottom_left++;
+      bottom_right++;
+      if( (point_index+2) == num_steps){
+	bottom_left = circle_index * num_steps;
+	bottom_right = bottom_left + num_steps;
+	if(bottom_right == (num_steps*num_steps) ){
+	  bottom_right = 0;
+	}
+      }
+    }
+    bottom_left = top_left + 1;
+    if( (circle_index+2) == num_steps ){//means that the next circle index is the last
+      top_right = 0;
+    }
+    bottom_right = top_right + 1;
+  }
+
+
+  /*
   int latStop, longtStop, latStart, longStart;
   latStart = 0;
   longStart = 0;
   latStop = num_steps;
   longtStop = num_steps;
-  for ( lat = 0; lat < num_steps; lat++ )
+  for ( lat = 0; lat < num_steps; lat++ ){
     for ( longt = 0; longt < num_steps; longt++ ) {
       
       index = lat * num_steps + longt;
+
+      //square
+      ////
       
+      //add_polygon(points,
+      //	  temp->m[
+      //	  );
+
       add_edge( points, temp->m[0][index],
 		temp->m[1][index],
 		temp->m[2][index],
@@ -212,6 +266,8 @@ void add_torus( struct matrix * points,
 		temp->m[1][index] + 1,
 		temp->m[2][index] );
     }//end points only
+  }
+  */
 }
 
 /*======== void generate_torus() ==========
@@ -294,71 +350,73 @@ void add_box( struct matrix * points,
     {x,y2,z2}, //6
     {x,y,z2} //7
   };
+
+  //printf("(%lf,%lf,%lf) (%lf,%lf,%lf) (%lf, %lf, %lf)\n",cors[0][0],cors[0][1],cors[0][2],cors[1][0],cors[1][1],cors[1][2],cors[2][0],cors[2][1],cors[2][2]);
   //FRONT
   add_polygon(points,
-	      cors[0][1],cors[0][1],cors[0][2],//0
-	      cors[1][1],cors[1][1],cors[1][2],//1
-	      cors[2][1],cors[2][1],cors[2][2]//2
+	      cors[0][0],cors[0][1],cors[0][2],//0
+	      cors[1][0],cors[1][1],cors[1][2],//1
+	      cors[2][0],cors[2][1],cors[2][2]//2
 	      );
   add_polygon(points,
-	      cors[0][1],cors[0][1],cors[0][2],//0
-	      cors[2][1],cors[2][1],cors[2][2],//2
-	      cors[3][1],cors[3][1],cors[3][2]//3
+	      cors[0][0],cors[0][1],cors[0][2],//0
+	      cors[2][0],cors[2][1],cors[2][2],//2
+	      cors[3][0],cors[3][1],cors[3][2]//3
 	      );
   //BACK
   add_polygon(points,
-	      cors[4][1],cors[4][1],cors[4][2],//4
-	      cors[5][1],cors[5][1],cors[5][2],//5
-	      cors[6][1],cors[6][1],cors[6][2]//6
+	      cors[4][0],cors[4][1],cors[4][2],//4
+	      cors[5][0],cors[5][1],cors[5][2],//5
+	      cors[6][0],cors[6][1],cors[6][2]//6
 	      );
   add_polygon(points,
-	      cors[4][1],cors[4][1],cors[4][2],//4
-	      cors[6][1],cors[6][1],cors[6][2],//6
-	      cors[7][1],cors[7][1],cors[7][2]//7
+	      cors[4][0],cors[4][1],cors[4][2],//4
+	      cors[6][0],cors[6][1],cors[6][2],//6
+	      cors[7][0],cors[7][1],cors[7][2]//7
 	      );
    //LEFT
   add_polygon(points,
-	      cors[7][1],cors[7][1],cors[7][2],//7
-	      cors[6][1],cors[6][1],cors[6][2],//6
-	      cors[1][1],cors[1][1],cors[1][2]//1
+	      cors[7][0],cors[7][1],cors[7][2],//7
+	      cors[6][0],cors[6][1],cors[6][2],//6
+	      cors[1][0],cors[1][1],cors[1][2]//1
 	      );
   add_polygon(points,
-	      cors[7][1],cors[7][1],cors[7][2],//7
-	      cors[1][1],cors[1][1],cors[1][2],//1
-	      cors[0][1],cors[0][1],cors[0][2]//0
+	      cors[7][0],cors[7][1],cors[7][2],//7
+	      cors[1][0],cors[1][1],cors[1][2],//1
+	      cors[0][0],cors[0][1],cors[0][2]//0
 	      );
   //RIGHT
   add_polygon(points,
-	      cors[3][1],cors[3][1],cors[3][2],//3
-	      cors[2][1],cors[2][1],cors[2][2],//2
-	      cors[5][1],cors[5][1],cors[5][2]//5
+	      cors[3][0],cors[3][1],cors[3][2],//3
+	      cors[2][0],cors[2][1],cors[2][2],//2
+	      cors[5][0],cors[5][1],cors[5][2]//5
 	      );
   add_polygon(points,
-	      cors[3][1],cors[3][1],cors[3][2],//3
-	      cors[5][1],cors[5][1],cors[5][2],//5
-	      cors[4][1],cors[4][1],cors[4][2]//4
+	      cors[3][0],cors[3][1],cors[3][2],//3
+	      cors[5][0],cors[5][1],cors[5][2],//5
+	      cors[4][0],cors[4][1],cors[4][2]//4
 	      );
    //TOP
   add_polygon(points,
-	      cors[7][1],cors[7][1],cors[7][2],//7
-	      cors[0][1],cors[0][1],cors[0][2],//0
-	      cors[3][1],cors[3][1],cors[3][2]//3
+	      cors[7][0],cors[7][1],cors[7][2],//7
+	      cors[0][0],cors[0][1],cors[0][2],//0
+	      cors[3][0],cors[3][1],cors[3][2]//3
 	      );
   add_polygon(points,
-	      cors[7][1],cors[7][1],cors[7][2],//7
-	      cors[3][1],cors[3][1],cors[3][2],//3
-	      cors[4][1],cors[4][1],cors[4][2]//4
+	      cors[7][0],cors[7][1],cors[7][2],//7
+	      cors[3][0],cors[3][1],cors[3][2],//3
+	      cors[4][0],cors[4][1],cors[4][2]//4
 	      );
   //BOTTOM
   add_polygon(points,
-	      cors[1][1],cors[1][1],cors[1][2],//1
-	      cors[6][1],cors[6][1],cors[6][2],//6
-	      cors[5][1],cors[5][1],cors[5][2]//5
+	      cors[1][0],cors[1][1],cors[1][2],//1
+	      cors[6][0],cors[6][1],cors[6][2],//6
+	      cors[5][0],cors[5][1],cors[5][2]//5
 	      );
   add_polygon(points,
-	      cors[1][1],cors[1][1],cors[1][2],//1
-	      cors[5][1],cors[5][1],cors[5][2],//5
-	      cors[2][1],cors[2][1],cors[2][2]//2
+	      cors[1][0],cors[1][1],cors[1][2],//1
+	      cors[5][0],cors[5][1],cors[5][2],//5
+	      cors[2][0],cors[2][1],cors[2][2]//2
 	      );
  
 }
