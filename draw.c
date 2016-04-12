@@ -50,18 +50,40 @@ jdyrlandweaver
 ====================*/
 void draw_polygons( struct matrix *polygons, screen s, color c ) {
   int n, polynum;
-  double x0, y0, x1, y1, x2, y2;
+  double x0, y0, z0, x1, y1, z1, x2, y2, z2;
   polynum = (polygons->lastcol)/3;
   for(n = 0; n < polynum; n++){
     x0 = polygons->m[0][n*3];
     y0 = polygons->m[1][n*3];
+    z0 = polygons->m[2][n*3];
     x1 = polygons->m[0][n*3+1];
     y1 = polygons->m[1][n*3+1];
+    z1 = polygons->m[2][n*3+1];
     x2 = polygons->m[0][n*3+2];
     y2 = polygons->m[1][n*3+2];
-    draw_line(x0, y0, x1, y1, s, c);
-    draw_line(x1, y1, x2, y2, s, c);
-    draw_line(x2, y2, x0, y0, s, c);
+    z2 = polygons->m[2][n*3+2];
+
+    //create A vector: A-> = p1 - p0 <x1 - x0, y1 - y0, z1 - z0>
+    double Av[3] = {x1-x0, y1-y0, z1-z0};
+    //create B vector: B-> = p2 - p1 <x2 - x0, y2 - y0, z2 - z0>
+    double Bv[3] = {x2-x0, y2-y0, z2-z0};
+    //take cross product: A-> x B-> = < aybz - azby, azbx - axbz, axby - aybx >
+    double cross[3] = { (Av[1]*Bv[2]) - (Av[2]*Bv[1]),
+			(Av[2]*Bv[0]) - (Av[0]*Bv[2]),
+			(Av[0]*Bv[1]) - (Av[1]*Bv[0]) };
+    double cross_magnitude = sqrt( (cross[0]*cross[0]) + (cross[1]*cross[1]) + (cross[2]*cross[2]) );
+    //calculate theta: Cos(θ)= (V1x * V2x + V1y * V2y + V1z V2)/|V1||V2 | (one is cross and one is view (0,0,-1))
+    //if positive: frontface! Draw
+    double cos_theta = ( cross[0]*0 + cross[1]*0 + cross[2]*-1 )/(cross_magnitude*1);
+    
+    if(cos_theta >= 0){
+      draw_line(x0, y0, x1, y1, s, c);
+      draw_line(x1, y1, x2, y2, s, c);
+      draw_line(x2, y2, x0, y0, s, c);
+    }
+
+
+
     //printf("(%lf, %lf) (%lf, %lf)\n",x0,y0,x1,y1);
     //printf("(%lf, %lf) (%lf, %lf)\n",x1,y1,x2,y2);
     //printf("(%lf, %lf) (%lf, %lf)\n\n",x2,y2,x0,y0);
@@ -103,7 +125,7 @@ void add_sphere( struct matrix * points,
 
   int latStop, longStop, latStart, longStart;
   latStart = 0;
-  latStop = num_steps;
+  latStop = num_steps/2;
   longStart = 0;
   longStop = num_steps;
   //latitudes go from 0 to step/2
@@ -118,6 +140,74 @@ void add_sphere( struct matrix * points,
 		   temp->m[0][index]-1, temp->m[1][index]-1, temp->m[2][index],
 		   temp->m[0][index], temp->m[1][index]+1, temp->m[2][index]
 		   );
+
+      int longt_neighbor = index+1;//neighbor along longt line
+      int lat_neighbor = index+num_steps;//neighbor along lat line
+      int diagonal = index + num_steps + 1;
+      if( (lat==0) || (lat==latStop-1) ){//one pole
+	if(longt==longStop-1){
+	    lat_neighbor = lat;
+	    diagonal = lat + 1;
+	}
+	add_polygon( points,
+		     temp->m[0][index], temp->m[1][index], temp->m[2][index],
+		     temp->m[0][longt_neighbor], temp->m[1][longt_neighbor], temp->m[2][longt_neighbor],
+		     temp->m[0][diagonal], temp->m[1][diagonal], temp->m[2][diagonal]
+		     );
+      }else{
+	if(lat<latStop-1){
+	  if(longt==longStop-1){
+	    lat_neighbor = lat;
+	    diagonal = lat + 1;
+	  }
+
+	  add_polygon( points,
+		       temp->m[0][index], temp->m[1][index], temp->m[2][index],
+		       temp->m[0][longt_neighbor], temp->m[1][longt_neighbor], temp->m[2][longt_neighbor],
+		       temp->m[0][index], temp->m[1][index], temp->m[2][index]
+		       );
+	  add_polygon( points,
+		       temp->m[0][longt_neighbor], temp->m[1][longt_neighbor], temp->m[2][longt_neighbor],
+		       temp->m[0][diagonal], temp->m[1][diagonal], temp->m[2][diagonal],
+		       temp->m[0][longt_neighbor], temp->m[1][longt_neighbor], temp->m[2][longt_neighbor]
+		       );
+	  add_polygon( points,
+		       temp->m[0][diagonal], temp->m[1][diagonal], temp->m[2][diagonal],
+		       temp->m[0][lat_neighbor], temp->m[1][lat_neighbor], temp->m[2][lat_neighbor],
+		       temp->m[0][diagonal], temp->m[1][diagonal], temp->m[2][diagonal]
+		       );
+	  add_polygon( points,
+		       temp->m[0][lat_neighbor], temp->m[1][lat_neighbor], temp->m[2][lat_neighbor],
+		       temp->m[0][index], temp->m[1][index], temp->m[2][index],
+		       temp->m[0][lat_neighbor], temp->m[1][lat_neighbor], temp->m[2][lat_neighbor]
+		       );
+	  add_polygon( points,
+		       temp->m[0][index], temp->m[1][index], temp->m[2][index],
+		       temp->m[0][longt_neighbor], temp->m[1][longt_neighbor], temp->m[2][longt_neighbor],
+		       temp->m[0][diagonal], temp->m[1][diagonal], temp->m[2][diagonal]
+		       );
+	  add_polygon( points,
+		       temp->m[0][index], temp->m[1][index], temp->m[2][index],
+		       temp->m[0][diagonal], temp->m[1][diagonal], temp->m[2][diagonal],
+		       temp->m[0][lat_neighbor], temp->m[1][lat_neighbor], temp->m[2][lat_neighbor]
+		       );
+	}
+      }
+      /*
+      add_polygon( points,
+		   temp->m[0][index], temp->m[1][index], temp->m[2][index],
+		   temp->m[0][longt_neighbor], temp->m[1][longt_neighbor], temp->m[2][longt_neighbor],
+		   temp->m[0][diagonal], temp->m[1][diagonal], temp->m[2][diagonal]
+		   );
+      add_polygon( points,
+		   temp->m[0][index], temp->m[1][index], temp->m[2][index],
+		   temp->m[0][diagonal], temp->m[1][diagonal], temp->m[2][diagonal],
+		   temp->m[0][lat_neighbor], temp->m[1][lat_neighbor], temp->m[2][lat_neighbor]
+		   );
+      */
+      
+
+      /*
       if(longt==num_steps-1){
 	if(lat==num_steps-1){
 	  add_polygon( points,
@@ -149,7 +239,6 @@ void add_sphere( struct matrix * points,
 		       temp->m[0][index-lat], temp->m[1][index-lat], temp->m[2][index-lat],
 		       temp->m[0][index-lat+num_steps], temp->m[1][index-lat+num_steps], temp->m[2][index-lat+num_steps]
 		       );
-	  /*
 	  add_polygon( points,
 		       temp->m[0][index], temp->m[1][index], temp->m[2][index],
 		       temp->m[0][index+1], temp->m[1][index+1], temp->m[2][index+1],
@@ -160,7 +249,6 @@ void add_sphere( struct matrix * points,
 		       temp->m[0][index-lat+num_steps+1], temp->m[1][index-lat+num_steps+1], temp->m[2][index-lat+num_steps+1],
 		       temp->m[0][index-lat+num_steps], temp->m[1][index-lat+num_steps], temp->m[2][index-lat+num_steps]
 		       );
-	  */
 	}else{
 	  add_polygon( points,
 		       temp->m[0][index], temp->m[1][index], temp->m[2][index],
@@ -174,14 +262,11 @@ void add_sphere( struct matrix * points,
 		       );
 	}
       }
-      /*
       add_polygon( points,
 		   temp->m[0][index], temp->m[1][index], temp->m[2][index],
 		   temp->m[0][index+num_steps], temp->m[1][index+num_steps], temp->m[2][index+num_steps],
 		   temp->m[0][index], temp->m[1][index], temp->m[2][index]
 		   );
-      */
-      /*
       add_polygon( points,
 		   temp->m[0][index], temp->m[1][index], temp->m[2][index],
 		   temp->m[0][index+1], temp->m[1][index+1], temp->m[2][index+1],
@@ -192,7 +277,7 @@ void add_sphere( struct matrix * points,
 		   temp->m[0][index+num_steps+1], temp->m[1][index+num_steps+1], temp->m[2][index+num_steps+1],
 		   temp->m[0][index+num_steps], temp->m[1][index+num_steps], temp->m[2][index+num_steps]
 		   );
-      */
+*/
     }
   }
 
